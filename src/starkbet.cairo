@@ -20,10 +20,12 @@ from Empiric.contracts.oracle_controller.IEmpiricOracle import IEmpiricOracle
 
 const EMPIRIC_ORACLE_ADDRESS = 0x012fadd18ec1a23a160cc46981400160fbf4a7a5eed156c4669e39807265bcd4
 
+@event
+func bet(up, owner, key, threshold, betting_expiration, expiration, token_addr, amount : Uint256):
+end
+
 @storage_var
-func bets_up(
-    key : felt, target : felt, betting_expiration : felt, expiration : felt, token_contract : felt
-) -> (amount : Uint256):
+func bets_up(key, target, betting_expiration, expiration, token_contract) -> (amount : Uint256):
 end
 
 @storage_var
@@ -38,9 +40,7 @@ func bets_up_owners(
 end
 
 @storage_var
-func bets_down(
-    key : felt, target : felt, betting_expiration : felt, expiration : felt, token_contract : felt
-) -> (amount : Uint256):
+func bets_down(key, target, betting_expiration, expiration, token_contract) -> (amount : Uint256):
 end
 
 @storage_var
@@ -56,13 +56,35 @@ end
 
 # 0 if no winner, 1 if down, 2 if up
 @storage_var
-func won(
-    key : felt, target : felt, betting_expiration : felt, expiration : felt, token_contract : felt
-) -> (winner : felt):
+func bet_status(key, target, betting_expiration, expiration, token_contract) -> (status : felt):
 end
 
 @storage_var
 func profits(token_contract : felt) -> (amount : Uint256):
+end
+
+@view
+func get_up_liquidity{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    key, target, betting_expiration, expiration, token_contract
+) -> (amount : Uint256):
+    let (amount) = bets_up.read(key, target, betting_expiration, expiration, token_contract)
+    return (amount)
+end
+
+@view
+func get_down_liquidity{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    key, target, betting_expiration, expiration, token_contract
+) -> (amount : Uint256):
+    let (amount) = bets_down.read(key, target, betting_expiration, expiration, token_contract)
+    return (amount)
+end
+
+@view
+func get_bet_status{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    key, target, betting_expiration, expiration, token_contract
+) -> (status : felt):
+    let (status) = bet_status.read(key, target, betting_expiration, expiration, token_contract)
+    return (status)
 end
 
 @external
@@ -85,7 +107,10 @@ func bet_up{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (old_amount) = bets_up.read(key, target, betting_expiration, expiration, token_contract)
     let (sum, _) = uint256_add(old_amount, amount)
     bets_up.write(key, target, betting_expiration, expiration, token_contract, sum)
-    bets_up_owners.write(caller, key, target, betting_expiration, expiration, token_contract, amount)
+    bets_up_owners.write(
+        caller, key, target, betting_expiration, expiration, token_contract, amount
+    )
+    bet.emit(TRUE, caller, key, target, betting_expiration, expiration, token_contract, amount)
     return ()
 end
 
@@ -112,12 +137,13 @@ func bet_down{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}
     bets_down_owners.write(
         caller, key, target, betting_expiration, expiration, token_contract, amount
     )
+    bet.emit(FALSE, caller, key, target, betting_expiration, expiration, token_contract, amount)
     return ()
 end
 
 @external
 func close_bet{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    key : felt, target : felt, betting_expiration : felt, expiration : felt, token_contract : felt
+    key, target, betting_expiration, expiration, token_contract
 ) -> ():
     # assert timestamp >= expiration
     let (timestamp) = get_block_timestamp()
@@ -126,7 +152,7 @@ func close_bet{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
     let (amount_up) = bets_up.read(key, target, betting_expiration, expiration, token_contract)
     let (amount_down) = bets_down.read(key, target, betting_expiration, expiration, token_contract)
     let (total, _) = uint256_add(amount_up, amount_down)
-    won.write(key, target, betting_expiration, expiration, token_contract, up + 1)
+    bet_status.write(key, target, betting_expiration, expiration, token_contract, up + 1)
     return ()
 end
 
@@ -152,7 +178,7 @@ func has_won{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (tokens_down) = bets_down.read(key, target, betting_expiration, expiration, token_contract)
     let (total_tokens, _) = uint256_add(tokens_up, tokens_down)
 
-    let (winner) = won.read(key, target, betting_expiration, expiration, token_contract)
+    let (winner) = bet_status.read(key, target, betting_expiration, expiration, token_contract)
     if winner == 0:
         assert 1 = 0
     end
@@ -174,7 +200,7 @@ end
 
 @external
 func redeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    key : felt, target : felt, betting_expiration : felt, expiration : felt, token_contract : felt
+    key, target, betting_expiration, expiration, token_contract
 ) -> ():
     alloc_locals
     # result example: { total_tokens: 20, total_shares : 15, user_shares : 5 }
