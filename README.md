@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <img src="/logo.png?raw=true" alt="Shut Up and Take my Money" width="512">
+  <img src="/logo.png?raw=true" alt="Shut Up and Take my Money" width="256">
   <br>
 </h1>
 
