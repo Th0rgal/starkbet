@@ -4,7 +4,12 @@ from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.pow import pow
-from starkware.cairo.common.uint256 import Uint256, uint256_add, uint256_unsigned_div_rem
+from starkware.cairo.common.uint256 import (
+    Uint256,
+    uint256_add,
+    uint256_mul,
+    uint256_unsigned_div_rem,
+)
 from starkware.starknet.common.syscalls import (
     get_contract_address,
     get_caller_address,
@@ -161,6 +166,7 @@ end
 func take_profits_up{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     key : felt, target : felt, voting_expiration : felt, expiration : felt, token_contract : felt
 ) -> ():
+    alloc_locals
     # result example: { total: 20, shares : 15 }
     let (result : BetResult) = bet_result_up.read(
         key, target, voting_expiration, expiration, token_contract
@@ -171,15 +177,23 @@ func take_profits_up{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
     )
 
     # if we own shares, we can keep: shares * total / total_shares
-    let (user_profit : Uint256, rounding : Uint256) = uint256_unsigned_div_rem(
-        result.total * shares, result.shares
+    let (multiplied_low : Uint256, multiplied_high : Uint256) = uint256_mul(result.total, shares)
+    let (user_profit_a : Uint256, rounding_a : Uint256) = uint256_unsigned_div_rem(
+        multiplied_low, result.shares
     )
+    let (user_profit_b : Uint256, rounding_b : Uint256) = uint256_unsigned_div_rem(
+        multiplied_high, result.shares
+    )
+
+    let (user_profit : Uint256, _) = uint256_add(user_profit_a, user_profit_b)
+    let (rounding : Uint256, _) = uint256_add(rounding_a, rounding_b)
 
     # rounding error is kept by the protocol: that wouldn't be fair to give a better share to some users
     let (prev_protocol_profit : Uint256) = profits.read(token_contract)
-    let (protocol_profit : Uint256) = uint256_add(prev_protocol_profit, rounding)
+    let (protocol_profit : Uint256, _) = uint256_add(prev_protocol_profit, rounding)
     profits.write(token_contract, protocol_profit)
 
     let (caller) = get_caller_address()
     IERC20.transfer(token_contract, caller, user_profit)
+    return ()
 end
