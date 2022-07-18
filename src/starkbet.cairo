@@ -97,7 +97,9 @@ func bet_up{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     amount : Uint256,
 ) -> ():
     let (timestamp) = get_block_timestamp()
+    # assert timestamp <= betting_expiration
     assert_le(timestamp, betting_expiration)
+    # assert betting_expiration <= expiration
     assert_le(betting_expiration, expiration)
 
     let (caller) = get_caller_address()
@@ -165,7 +167,7 @@ func is_above_threshold{syscall_ptr : felt*, range_check_ptr}(key : felt, thresh
     return (is_above_threshold)
 end
 
-func has_won{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+func load_earnings{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     owner : felt,
     key : felt,
     target : felt,
@@ -188,12 +190,18 @@ func has_won{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         let (shares) = bets_down_owners.read(
             owner, key, target, betting_expiration, expiration, token_contract
         )
+        bets_down_owners.write(
+            owner, key, target, betting_expiration, expiration, token_contract, Uint256(0, 0)
+        )
         return (total_tokens, tokens_down, shares)
     end
 
     # winner is up
     let (shares) = bets_up_owners.read(
         owner, key, target, betting_expiration, expiration, token_contract
+    )
+    bets_up_owners.write(
+        owner, key, target, betting_expiration, expiration, token_contract, Uint256(0, 0)
     )
     return (total_tokens, tokens_up, shares)
 end
@@ -206,7 +214,7 @@ func redeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     # result example: { total_tokens: 20, total_shares : 15, user_shares : 5 }
 
     let (caller) = get_caller_address()
-    let (total_tokens : Uint256, total_shares : Uint256, user_shares : Uint256) = has_won(
+    let (total_tokens : Uint256, total_shares : Uint256, user_shares : Uint256) = load_earnings(
         caller, key, target, betting_expiration, expiration, token_contract
     )
 

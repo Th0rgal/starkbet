@@ -53,10 +53,18 @@ func test_up_bet{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_p
         stop_warp = warp(2)
         stop_mock = mock_call(ids.eth_contract, "transferFrom", [1])
         stop_prank_callable = start_prank(2)
-                #stop_mock = mock_call(ids.empiric_oracle_address, "get_value", [1481820000000000000000, 18, 1658150145, 10])
     %}
     # USER 2 BET DOWN WITH 400 TOKENS
     bet_down('eth/usd', a_thousand, 3, 5, eth_contract, Uint256(400, 0))
+
+    %{
+        stop_mock()
+        stop_prank_callable()
+        stop_mock = mock_call(ids.eth_contract, "transferFrom", [1])
+        stop_prank_callable = start_prank(3)
+    %}
+    # USER 3 BET DOWN WITH 400 TOKENS
+    bet_down('eth/usd', a_thousand, 3, 5, eth_contract, Uint256(500, 0))
 
     %{
         stop_warp()
@@ -69,12 +77,12 @@ func test_up_bet{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_p
     let (up_liquidity) = get_up_liquidity('eth/usd', a_thousand, 3, 5, eth_contract)
     assert up_liquidity = Uint256(600, 0)
     let (down_liquidity) = get_down_liquidity('eth/usd', a_thousand, 3, 5, eth_contract)
-    assert down_liquidity = Uint256(400, 0)
+    assert down_liquidity = Uint256(900, 0)
 
     let (status) = get_bet_status('eth/usd', a_thousand, 3, 5, eth_contract)
     assert status = 0
 
-    # USER 1 CLOSES THE BET SO USER 1 CAN WIN 1000 TOKENS
+    # USER 1 CLOSES THE BET SO USER 1 CAN WIN 1500 TOKENS
     close_bet('eth/usd', a_thousand, 3, 5, eth_contract)
 
     let (status) = get_bet_status('eth/usd', a_thousand, 3, 5, eth_contract)
@@ -84,7 +92,7 @@ func test_up_bet{pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, range_check_p
         stop_mock()
         stop_mock = mock_call(ids.eth_contract, "transfer", [1])
     %}
-    # USER 1 REDEEMS THE BET TO WIN 1000 TOKENS
+    # USER 1 REDEEMS THE BET TO WIN 1500 TOKENS
     redeem('eth/usd', a_thousand, 3, 5, eth_contract)
 
     return ()
