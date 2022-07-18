@@ -3,15 +3,15 @@ from starkware.cairo.common.math import assert_nn, assert_le
 from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.uint256 import Uint256, uint256_add
+from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.pow import pow
-
 from starkware.starknet.common.syscalls import (
     get_contract_address,
     get_caller_address,
     get_block_timestamp,
 )
-from src.openzeppelin.token.erc20.interfaces.IERC20 import IERC20
-from contracts.oracle_controller.IEmpiricOracle import IEmpiricOracle
+from cairo_contracts.src.openzeppelin.token.erc20.interfaces.IERC20 import IERC20
+from Empiric.contracts.oracle_controller.IEmpiricOracle import IEmpiricOracle
 
 @storage_var
 func bets_up(
@@ -112,19 +112,11 @@ end
 
 const EMPIRIC_ORACLE_ADDRESS = 0x012fadd18ec1a23a160cc46981400160fbf4a7a5eed156c4669e39807265bcd4
 
-@view
 func is_above_threshold{syscall_ptr : felt*, range_check_ptr}(key : felt, threshold : felt) -> (
     is_above_threshold : felt
 ):
     alloc_locals
-
-    let (eth_price, decimals, timestamp, num_sources_aggregated) = IEmpiricOracle.get_value(
-        EMPIRIC_ORACLE_ADDRESS, key, 0
-    )
-    %{ print("result:", ids.eth_price) %}
-    let (multiplier) = pow(10, decimals)
-
-    let shifted_threshold = threshold * multiplier
-    let (is_above_threshold) = is_le(shifted_threshold, eth_price)
+    let (eth_price, _, _, _) = IEmpiricOracle.get_value(EMPIRIC_ORACLE_ADDRESS, key, 0)
+    let (is_above_threshold) = is_le(threshold, eth_price)
     return (is_above_threshold)
 end
